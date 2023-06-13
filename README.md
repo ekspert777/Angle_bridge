@@ -11,6 +11,8 @@ This script is designed to automate bridging of agEUR across different chains us
 
 <h2>Usage</h2>
 
+Configurate scripts in a file `main.py`.
+
 - from_chain_name: The name of the chain you are bridging from. Can be "Gnosis", "Celo", or "Arbitrum".
 - to_chain_name: The name of the chain you are bridging to. Can be "Gnosis", "Celo", or "Arbitrum".
 - delay_range: A tuple that defines the minimum and maximum delay (in seconds) between transactions for different wallets.
