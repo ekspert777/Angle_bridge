@@ -5,7 +5,7 @@ This script is designed to automate bridging of agEUR across different chains us
 
 <h2>Setup</h2>
 
-1. Install the necessary dependencies using pip3 for Mac or pip for Windows
+1. Install the necessary dependencies using `pip3` for Mac or `pip` for Windows
 2. Prepare your wallets. You will need to provide the private keys of the wallets to be used in a file named `wallets.txt`. Each line of the file should contain one private key.
 
 
