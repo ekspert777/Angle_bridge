@@ -26,7 +26,7 @@ For Mac: <pre><code>python3 main.py</code></pre>
 
 <h2>Details</h2>
 
-The script will iterate over each wallet in wallets.txt. For each wallet, it will approve the maximum possible amount of agEUR for the bridge contract, then bridge the entire balance of the wallet to the destination chain. It will wait for a random amount of time (within the delay_range) before moving on to the next wallet.
+The script will iterate over each wallet in `wallets.txt`. For each wallet, it will approve the maximum possible amount of agEUR for the bridge contract, then bridge the entire balance of the wallet to the destination chain. It will wait for a random amount of time (within the delay_range) before moving on to the next wallet.
 
 The script also contains logging functionality that will provide detailed information about each transaction.
 
