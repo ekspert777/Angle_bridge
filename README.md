@@ -17,6 +17,7 @@ Configurate scripts in a file `main.py`.
 - to_chain_name: The name of the chain you are bridging to. Can be "Gnosis", "Celo", or "Arbitrum".
 - delay_range: A tuple that defines the minimum and maximum delay (in seconds) between transactions for different wallets.
 - random_wallets: If set to True, the script will randomly shuffle the wallets before starting.
+- max_attempts: Number of attempts when a transaction fails 
 
 Once you have prepared your setup and configured the script, you can run it using:
 
