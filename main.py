@@ -14,11 +14,11 @@ from loguru import logger
     chains : Gnosis | Celo | Arbitrum 
 '''
 
-from_chain_name = "Celo"    # Enter here the network from which you're bridging
-to_chain_name = "Gnosis"    # Enter here the network to which you're bridging
-delay_range = (20, 60)      # Enter here your delay range between wallets
+from_chain_name = "Gnosis"    # Enter here the network from which you're bridging
+to_chain_name = "Arbitrum"    # Enter here the network to which you're bridging
+delay_range = (10, 20)      # Enter here your delay range between wallets
 random_wallets = True       # Enter True here if you want to select random wallets
-
+max_attempts = 3            # Enter number of maximum attempts for transaction execution
 
 with open('router_abi.json') as f:
     router_abi = json.load(f)
@@ -94,10 +94,8 @@ class ChainSelector:
         return from_chain, to_chain
 
 
-async def approve_ag_eur(chain_from, wallet):
-
+async def approve_ag_eur(chain_from, wallet, max_attempts):
     try:
-
         account = chain_from.w3.eth.account.from_key(wallet)
         address = account.address
         balance = await check_balance(address, chain_from.ag_eur_contract)
@@ -115,18 +113,29 @@ async def approve_ag_eur(chain_from, wallet):
                 'nonce': nonce,
             })
 
-            signed_approve_txn = chain_from.w3.eth.account.sign_transaction(
-                approve_txn, wallet)
-            raw_approve_txn_hash = await chain_from.w3.eth.send_raw_transaction(signed_approve_txn.rawTransaction)
-            approve_txn_hash = chain_from.w3.to_hex(raw_approve_txn_hash)
-            receipt = await chain_from.w3.eth.wait_for_transaction_receipt(approve_txn_hash)
+            for attempt in range(1, max_attempts+1):
+                try:
+                    signed_approve_txn = chain_from.w3.eth.account.sign_transaction(
+                        approve_txn, wallet)
+                    raw_approve_txn_hash = await chain_from.w3.eth.send_raw_transaction(signed_approve_txn.rawTransaction)
+                    approve_txn_hash = chain_from.w3.to_hex(
+                        raw_approve_txn_hash)
+                    receipt = await chain_from.w3.eth.wait_for_transaction_receipt(approve_txn_hash)
 
-            if receipt['status'] == 1:
-                logger.success(
-                    f"{chain_from.__class__.__name__} | agEUR approval sent | Tx: {chain_from.blockExplorerUrl}/tx/{approve_txn_hash}")
-            else:
-                logger.error(
-                    f"{chain_from.__class__.__name__} | agEUR approval failed | Tx: {chain_from.blockExplorerUrl}/tx/{approve_txn_hash}")
+                    if receipt['status'] == 1:
+                        logger.success(
+                            f"{chain_from.__class__.__name__} | agEUR approval sent | Tx: {chain_from.blockExplorerUrl}/tx/{approve_txn_hash}")
+                        return
+
+                except Exception as error:
+                    logger.error(
+                        f"Error occurred during transaction: {str(error)}")
+
+                logger.warning(f"Attempt {attempt} failed. Retrying...")
+                await asyncio.sleep(random.randint(5, 10))
+
+            logger.error(
+                f"Reached maximum number of attempts. Failed to send agEUR approval.")
 
     except Exception as error:
         logger.error(f'{error}')
@@ -134,55 +143,64 @@ async def approve_ag_eur(chain_from, wallet):
     await asyncio.sleep(random.randint(5, 10))
 
 
-async def bridge_ag_eur(chain_from, chain_to, wallet):
-
+async def bridge_ag_eur(chain_from, chain_to, wallet, max_attempts):
     try:
-
         account = chain_from.w3.eth.account.from_key(wallet)
         address = account.address
         balance = await check_balance(address, chain_from.ag_eur_contract)
         address_edited = to_bytes(hexstr=account.address)
-        nonce = await chain_from.w3.eth.get_transaction_count(address)
-        gas_price = await chain_from.w3.eth.gas_price
-        adapter_params = '0x00010000000000000000000000000000000000000000000000000000000000030d40'
-        zroPaymentAddress = '0x' + '0' * 40
 
-        fees = await chain_from.bridge_contract.functions.estimateSendFee(
-            chain_to.chain_id,
-            address_edited,
-            balance,
-            True,
-            adapter_params
-        ).call()
+        for attempt in range(1, max_attempts+1):
+            try:
+                nonce = await chain_from.w3.eth.get_transaction_count(address)
+                gas_price = await chain_from.w3.eth.gas_price
+                adapter_params = '0x00010000000000000000000000000000000000000000000000000000000000030d40'
+                zroPaymentAddress = '0x' + '0' * 40
 
-        fee = fees[0]
+                fees = await chain_from.bridge_contract.functions.estimateSendFee(
+                    chain_to.chain_id,
+                    address_edited,
+                    balance,
+                    True,
+                    adapter_params
+                ).call()
 
-        bridge_txn = await chain_from.bridge_contract.functions.send(
-            chain_to.chain_id, address_edited, balance, address, zroPaymentAddress, adapter_params
-        ).build_transaction({
-            'from': address,
-            'value': fee,
-            'gasPrice': gas_price,
-            'nonce': nonce,
-        })
+                fee = fees[0]
 
-        signed_bridge_txn = chain_from.w3.eth.account.sign_transaction(
-            bridge_txn, wallet)
+                bridge_txn = await chain_from.bridge_contract.functions.send(
+                    chain_to.chain_id, address_edited, balance, address, zroPaymentAddress, adapter_params
+                ).build_transaction({
+                    'from': address,
+                    'value': fee,
+                    'gasPrice': gas_price,
+                    'nonce': nonce,
+                })
 
-        raw_bridge_txn_hash = await chain_from.w3.eth.send_raw_transaction(signed_bridge_txn.rawTransaction)
-        bridge_txn_hash = chain_from.w3.to_hex(raw_bridge_txn_hash)
-        receipt = await chain_from.w3.eth.wait_for_transaction_receipt(bridge_txn_hash)
+                signed_bridge_txn = chain_from.w3.eth.account.sign_transaction(
+                    bridge_txn, wallet)
+                raw_bridge_txn_hash = await chain_from.w3.eth.send_raw_transaction(signed_bridge_txn.rawTransaction)
+                bridge_txn_hash = chain_from.w3.to_hex(raw_bridge_txn_hash)
+                receipt = await chain_from.w3.eth.wait_for_transaction_receipt(bridge_txn_hash)
 
-        if receipt['status'] == 1:
-            token_amount = balance / 10**18 
-            logger.success(
-                f"{chain_from.__class__.__name__} | Bridge tx sent | Token Amount: {token_amount} | Tx: {chain_from.blockExplorerUrl}/tx/{bridge_txn_hash}")
-        else:
-            logger.error(
-                f"{chain_from.__class__.__name__} | Bridge tx failed | Tx: {chain_from.blockExplorerUrl}/tx/{bridge_txn_hash}")
+                if receipt['status'] == 1:
+                    token_amount = balance / 10**18
+                    logger.success(
+                        f"{chain_from.__class__.__name__} | Bridge tx sent | Token Amount: {token_amount} | Tx: {chain_from.blockExplorerUrl}/tx/{bridge_txn_hash}")
+                    return
+
+            except Exception as e:
+                logger.error(f"Error occurred during transaction: {str(e)}")
+
+            logger.warning(f"Attempt {attempt} failed. Retrying...")
+            await asyncio.sleep(random.randint(5, 10))
+
+        logger.error(
+            f"Reached maximum number of attempts. Failed to send bridge tx.")
 
     except Exception as e:
         logger.error(f"Error occurred during transaction: {str(e)}")
+
+    await asyncio.sleep(random.randint(5, 10))
 
 
 async def check_balance(address, contract):
@@ -190,7 +208,7 @@ async def check_balance(address, contract):
     return balance
 
 
-async def work(wallet, from_chain, to_chain):
+async def work(wallet, from_chain, to_chain, max_attempts):
     account = from_chain.w3.eth.account.from_key(wallet)
     address = account.address
     chains = [(from_chain, to_chain, from_chain.ag_eur_contract, bridge_ag_eur)]
@@ -202,8 +220,8 @@ async def work(wallet, from_chain, to_chain):
             continue
 
         try:
-            await approve_ag_eur(from_chain, wallet)
-            await bridge_fn(from_chain, to_chain, wallet)
+            await approve_ag_eur(from_chain, wallet, max_attempts)
+            await bridge_fn(from_chain, to_chain, wallet, max_attempts)
         except Exception as e:
             logger.error(f"Error occurred during transaction: {str(e)}")
 
@@ -242,10 +260,11 @@ async def main():
         logger.info(tx_str)
         logger.info("Starting bridge...")
 
-        await work(wallet, from_chain, to_chain)
+        await work(wallet, from_chain, to_chain, max_attempts)
 
     logger.info(colored(f'All done', 'green'))
 
 
 if __name__ == '__main__':
     asyncio.run(main())
+
