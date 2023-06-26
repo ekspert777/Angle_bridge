@@ -27,7 +27,7 @@ For Mac: <pre><code>python3 main.py</code></pre>
 
 <h2>Details</h2>
 
-Before you start, check the bridge limits https://app.angle.money/bridges-agEUR. If you received lz-agEUR, read this - https://docs.angle.money/overview/guides/bridge
+Before you start, check the bridge limits https://app.angle.money/bridges-agEUR. If you received lz-agEUR, read this - https://docs.angle.money/overview/guides/bridge and you can use `withdraw.py`
 
 
 The script will iterate over each wallet in `wallets.txt`. For each wallet, it will approve the maximum possible amount of agEUR for the bridge contract, then bridge the entire balance of the wallet to the destination chain. It will wait for a random amount of time (within the delay_range) before moving on to the next wallet.
