@@ -11,14 +11,14 @@ from loguru import logger
 
 '''
     Bridge agEUR on https://app.angle.money/ 
-    chains : Gnosis | Celo | Arbitrum 
+    chains : Gnosis | Celo | Arbitrum | Polygon | Bsc
 '''
 
 from_chain_name = "Gnosis"    # Enter here the network from which you're bridging
-to_chain_name = "Arbitrum"    # Enter here the network to which you're bridging
-delay_range = (10, 20)      # Enter here your delay range between wallets
-random_wallets = True       # Enter True here if you want to select random wallets
-max_attempts = 3            # Enter number of maximum attempts for transaction execution
+to_chain_name = "Celo"        # Enter here the network to which you're bridging
+delay_range = (10, 20)        # Enter here your delay range between wallets
+random_wallets = True         # Enter True here if you want to select random wallets
+max_attempts = 1              # Enter number of maximum attempts for transaction execution
 
 with open('router_abi.json') as f:
     router_abi = json.load(f)
@@ -72,12 +72,36 @@ class Arbitrum(Chain):
         )
 
 
+class Bsc(Chain):
+    def __init__(self):
+        super().__init__(
+            'https://rpc.ankr.com/bsc',  # rpc
+            '0xe9f183FC656656f1F17af1F2b0dF79b8fF9ad8eD',  # bridge contract
+            '0x12f31B73D812C6Bb0d735a218c086d44D5fe5f89',  # agEUR contract
+            102,  # Chain ID LZ
+            'https://bscscan.com'  # explorer
+        )
+
+
+class Polygon(Chain):
+    def __init__(self):
+        super().__init__(
+            'https://rpc.ankr.com/polygon',  # rpc
+            '0x0c1EBBb61374dA1a8C57cB6681bF27178360d36F',  # bridge contract
+            '0xE0B52e49357Fd4DAf2c15e02058DCE6BC0057db4',  # agEUR contract
+            109,  # Chain ID LZ
+            'https://polygonscan.com'  # explorer
+        )
+
+
 class ChainSelector:
     def __init__(self):
         self.chains = {
             "Gnosis": Gnosis(),
             "Celo": Celo(),
-            "Arbitrum": Arbitrum()
+            "Arbitrum": Arbitrum(),
+            "Bsc": Bsc(),
+            "Polygon": Polygon()
         }
 
     def get_chain(self, chain_name):
@@ -99,48 +123,55 @@ async def approve_ag_eur(chain_from, wallet, max_attempts):
         account = chain_from.w3.eth.account.from_key(wallet)
         address = account.address
         balance = await check_balance(address, chain_from.ag_eur_contract)
-        nonce = await chain_from.w3.eth.get_transaction_count(address)
-        gas_price = await chain_from.w3.eth.gas_price
         allowance = await chain_from.ag_eur_contract.functions.allowance(address, chain_from.bridge_address).call()
 
-        if balance > allowance:
-            max_amount = chain_from.w3.to_wei(2 ** 64 - 1, 'ether')
-            approve_txn = await chain_from.ag_eur_contract.functions.approve(
-                chain_from.bridge_address, max_amount
-            ).build_transaction({
-                'from': address,
-                'gasPrice': gas_price,
-                'nonce': nonce,
-            })
+        if balance < allowance:
+            return
 
-            for attempt in range(1, max_attempts+1):
-                try:
-                    signed_approve_txn = chain_from.w3.eth.account.sign_transaction(
-                        approve_txn, wallet)
-                    raw_approve_txn_hash = await chain_from.w3.eth.send_raw_transaction(signed_approve_txn.rawTransaction)
-                    approve_txn_hash = chain_from.w3.to_hex(
-                        raw_approve_txn_hash)
-                    receipt = await chain_from.w3.eth.wait_for_transaction_receipt(approve_txn_hash)
+        for attempt in range(1, max_attempts+1):
+            try:
 
-                    if receipt['status'] == 1:
-                        logger.success(
-                            f"{chain_from.__class__.__name__} | agEUR approval sent | Tx: {chain_from.blockExplorerUrl}/tx/{approve_txn_hash}")
-                        return
+                nonce = await chain_from.w3.eth.get_transaction_count(address)
 
-                except Exception as error:
-                    logger.error(
-                        f"Error occurred during transaction: {str(error)}")
+                if chain_from.chain_id == 102:  # Binance Smart Chain
+                    gas_price = chain_from.w3.to_wei(2, 'gwei')
+                else:
+                    gas_price = await chain_from.w3.eth.gas_price
 
-                logger.warning(f"Attempt {attempt} failed. Retrying...")
-                await asyncio.sleep(random.randint(5, 10))
+                max_amount = chain_from.w3.to_wei(2 ** 64 - 1, 'ether')
+                approve_txn = await chain_from.ag_eur_contract.functions.approve(
+                    chain_from.bridge_address, max_amount
+                ).build_transaction({
+                    'from': address,
+                    'gasPrice': gas_price,
+                    'nonce': nonce,
+                })
+
+                signed_approve_txn = chain_from.w3.eth.account.sign_transaction(
+                    approve_txn, wallet)
+                raw_approve_txn_hash = await chain_from.w3.eth.send_raw_transaction(signed_approve_txn.rawTransaction)
+                approve_txn_hash = chain_from.w3.to_hex(
+                    raw_approve_txn_hash)
+                receipt = await chain_from.w3.eth.wait_for_transaction_receipt(approve_txn_hash)
+
+                if receipt['status'] == 1:
+                    logger.success(
+                        f"{chain_from.__class__.__name__} | agEUR approval sent | Tx: {chain_from.blockExplorerUrl}/tx/{approve_txn_hash}")
+                    await asyncio.sleep(random.randint(5, 10))
+                    return
+
+            except Exception as error:
+                logger.error(
+                    f"Error occurred during transaction: {str(error)}")
+
+            logger.warning(f"Attempt {attempt} failed. Retrying...")
+            await asyncio.sleep(random.randint(5, 10))
 
             logger.error(
                 f"Reached maximum number of attempts. Failed to send agEUR approval.")
 
     except Exception as error:
         logger.error(f'{error}')
-
-    await asyncio.sleep(random.randint(5, 10))
 
 
 async def bridge_ag_eur(chain_from, chain_to, wallet, max_attempts):
