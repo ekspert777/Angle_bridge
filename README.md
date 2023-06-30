@@ -1,6 +1,6 @@
 <h1 align="center">Angle bridge </h1>
   
-This script is designed to automate bridging of agEUR across different chains using Angle Protocol - https://app.angle.money. The supported chains are Gnosis, Celo and Arbitrum.
+This script is designed to automate bridging of agEUR across different chains using Angle Protocol - https://app.angle.money. The supported chains are Gnosis, Celo, Arbitrum, Bsc and Polygon.
 
 
 <h2>Setup</h2>
