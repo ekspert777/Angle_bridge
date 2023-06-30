@@ -184,7 +184,11 @@ async def bridge_ag_eur(chain_from, chain_to, wallet, max_attempts):
         for attempt in range(1, max_attempts+1):
             try:
                 nonce = await chain_from.w3.eth.get_transaction_count(address)
-                gas_price = await chain_from.w3.eth.gas_price
+                if chain_from.chain_id == 102:  # Binance Smart Chain
+                    gas_price = chain_from.w3.to_wei(2, 'gwei')
+                else:
+                    gas_price = await chain_from.w3.eth.gas_price
+                    
                 adapter_params = '0x00010000000000000000000000000000000000000000000000000000000000030d40'
                 zroPaymentAddress = '0x' + '0' * 40
 
