@@ -35,4 +35,4 @@ The script will iterate over each wallet in `wallets.txt`. For each wallet, it w
 The script also contains logging functionality that will provide detailed information about each transaction.
 
 <h2></h2>
-Please note that handling private keys is sensitive and you should be very careful not to leak them. Never share your private keys with anyone you do not trust completely. Use this script at your own risk. DYOR
+Please note that handling private keys is sensitive and you should be very careful not to leak them. Never share your private keys with anyone you do not trust completely. Use this script at your own risk. DYOR1
